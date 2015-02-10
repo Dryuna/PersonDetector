@@ -6,31 +6,10 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
-#include <iostream>
-#include <stdlib.h>
-#include <stdio.h>
-#include <numeric>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/opencv.hpp>
-#include "boost/filesystem.hpp"
-#include "libsvm-3.20/svm.h"
+#include "PersonDetector.h"
 
-namespace fs = boost::filesystem;
-typedef std::vector<std::string> Filenames;
-typedef std::vector<float> FeatureVec;
+//void GetTrainingData(svm_problem &prob);
 
-void GetTrainingData(svm_problem &prob);
-void ResizeImages(fs::path &directory);
-void ResizeImagesRandom(fs::path &directory);
-void DrawGrid(cv::Mat &img_out, int dist, cv::Scalar color, cv::Point offset);
-int TestLibSVM();
-int TestXOR();
-void GetFileNames (Filenames &fn, fs::path &directory);
-void GetTrainingData(svm_problem &prob);
-void GetTestData(svm_node* testnode, const svm_model *model);
-void MakeSparseFeatures (FeatureVec &features, svm_node *x_space);
-void GetSparseFeatLength(FeatureVec &features, int &num_l);
-void TestData(svm_node* testnode);
 
 int main() {
 	std::cout << "!!!Hello World!!!" << std::endl; // prints !!!Hello World!!!
@@ -192,8 +171,51 @@ int TestXOR(){
 
 int TestLibSVM(){
 
+	svm_model *model;
+	int train_now =0;
+	if (train_now ==1){
+		std::cout << "starting svm_training" << std::endl;
+		svm_parameter param;
+		GetTrainingParameters(param);
+		svm_problem prob;
+
+
+		for(int i = 0; i<1; i++){
+			std::cout << "time is : " << i << std::endl;
+			GetTrainingData(prob, -1);
+			int nr_fold=10;
+			double *target = new double[prob.l];
+			svm_cross_validation(&prob, &param, nr_fold, target);
+		}
+
+		GetTrainingData(prob, -1);
+		model= svm_train(&prob,&param);
+	    free(prob.y);
+	    free(prob.x);
+		const char *model_file_name = "saved_model.model";
+		int saved= svm_save_model(model_file_name, model);
+	    svm_destroy_param(&param);
+
+	}
+
+	else{
+		const char *model_file_name = "saved_model.model";
+		model =svm_load_model(model_file_name);
+	}
+
+	std::cout << "testing training" << std::endl;
+	svm_node* testnode;
+	TestTraining(testnode, model);
+
+	std::cout << "end of demo" << std::endl;
+
+	return 0;
+
+}
+
+void GetTrainingParameters(svm_parameter &param){
 	//Parameters
-	svm_parameter param;
+	//svm_parameter param;
 	param.svm_type = C_SVC;
 	param.kernel_type = LINEAR;
 	param.degree = 3;
@@ -209,50 +231,9 @@ int TestLibSVM(){
 	param.nr_weight = 0;
 	param.weight_label = NULL;
 	param.weight = NULL;
-
-	svm_problem prob;
-	GetTrainingData(prob);
-	std::cout << "starting svm_training" << std::endl;
-//	svm_model *model = svm_train(&prob,&param);
-
-	//
-//	int nr_fold=5;
-//	double *target = new double[prob.l];
-//	svm_cross_validation(&prob, &param, nr_fold, target);
-	const char *model_file_name = "saved_model.model";
-//	int saved= svm_save_model(model_file_name, model);
-	svm_model *model =svm_load_model(model_file_name);
-
-	svm_node* testnode;
-	GetTestData(testnode, model);
-//	std::cout << "starting svm_predict" << std::endl;
-//	double retval = svm_predict(model,testnode);
-//	printf("retval: %f\n",retval);
-
-
-	double prob_est[2];
-	svm_node* testnode2;
-	TestData(testnode2);
-	std::cout << testnode2->index <<std::endl;
-	std::cout << "starting svm_predict_probability" << std::endl;
-	double predictions = svm_predict_probability(model, testnode2, prob_est);
-	printf("%f\t%f\t%f\n", predictions, prob_est[0], prob_est[1]);
-
-	//int nr_fold=5;
-	//double target;
-	//svm_cross_validation(&prob, &param, nr_fold, &target);
-
-    svm_destroy_param(&param);
-    //free(prob.y);
-    //free(prob.x);
-
-	std::cout << "end of demo" << std::endl;
-
-	return 0;
-
 }
 
-void GetTrainingData(svm_problem &prob){
+void GetTrainingData(svm_problem &prob, int size_set_in){
 //	cv::Mat test_image;
 //	fs::path test_path =fs::current_path(); test_path /= "/src/train_set/pos_rsz/crop_000001a0.png";
 //	std::string im_path = fs::canonical(test_path).string();
@@ -268,9 +249,15 @@ void GetTrainingData(svm_problem &prob){
 
 	//Merge all filenames together into new vector
 	Filenames all_fn;
-	all_fn.reserve( pos_fn.size() + neg_fn.size() ); // preallocate memory
-	all_fn.insert( all_fn.end(), pos_fn.begin(), pos_fn.end());
-	all_fn.insert( all_fn.end(), neg_fn.begin(), neg_fn.begin() +pos_fn.size());
+	int size_set;
+	if (size_set_in==2) size_set = pos_fn.size();
+	else size_set=-1;
+	// = pos_fn.size();
+	GetTrainSet (pos_fn, neg_fn, all_fn, size_set);
+	std::cout << "numtrain is : " << all_fn.size() <<std::endl;
+//	all_fn.reserve( pos_fn.size() + neg_fn.size() ); // preallocate memory
+//	all_fn.insert ( all_fn.end(), pos_fn.begin(), pos_fn.end());
+//	all_fn.insert ( all_fn.end(), neg_fn.begin(), neg_fn.begin() +pos_fn.size());
 
 	//initializing the problem
 	prob.l = all_fn.size();
@@ -310,6 +297,48 @@ void GetTrainingData(svm_problem &prob){
 
 }
 
+void GetTrainSet (Filenames &pos_fn, Filenames &neg_fn, Filenames &all_fn, int size_set){
+	std::cout << "getting train set" <<std::endl;
+	int tot_sz;
+	if (size_set==-1) {
+			tot_sz = pos_fn.size() + neg_fn.size();
+			all_fn.reserve( tot_sz ); // preallocate memory
+			all_fn.insert ( all_fn.end(), pos_fn.begin(), pos_fn.end());
+			all_fn.insert ( all_fn.end(), neg_fn.begin(), neg_fn.end());
+	}
+		//tot_sz=pos_fn.size()+neg_fn.size();
+	else {
+		tot_sz=2*size_set; // preallocate memory
+		//std::cout << pos_fn.size()+neg_fn.size() <<std::endl;
+		all_fn.reserve( tot_sz );
+		  // set some values:
+		std::vector<int> rand_idx_pos, rand_idx_neg;
+		for (int i=0; i<pos_fn.size(); ++i) rand_idx_pos.push_back(i);
+		for (int i=0; i<neg_fn.size(); ++i) rand_idx_neg.push_back(i);
+
+		// using built-in random generator:
+		std::random_shuffle ( rand_idx_pos.begin(), rand_idx_pos.end() );
+		std::random_shuffle ( rand_idx_neg.begin(), rand_idx_neg.end() );
+
+		std::vector<int>::iterator it_pos, it_neg;
+		for(it_pos=rand_idx_pos.begin(); it_pos<rand_idx_pos.end(); ++it_pos){
+			int temp_idx = rand_idx_pos.back();
+			all_fn.push_back (pos_fn[temp_idx]);
+			rand_idx_pos.pop_back();
+			//std::cout << *it_pos <<std::endl;
+		}
+
+		int add_neg = tot_sz-rand_idx_pos.size();
+		for(it_neg=rand_idx_neg.begin(); it_neg<rand_idx_neg.begin()+add_neg; ++it_neg){
+			int temp_idx = rand_idx_neg.back();
+			all_fn.push_back (neg_fn[temp_idx]);
+			rand_idx_neg.pop_back();
+		}
+	}
+
+	std::cout << "leaving train set" << size_set<< ": " << all_fn.size() <<std::endl;
+}
+
 void GetSparseFeatLength(FeatureVec &features, int &num_l){
 	for (int k=0; k<features.size(); k++){
 		if(features[k]>0){
@@ -333,7 +362,7 @@ void MakeSparseFeatures (FeatureVec &features, svm_node *x_space){
 	x_space[j].index = -1;
 }
 
-void GetTestData(svm_node* testnode, const svm_model *model){
+void TestTraining(svm_node* testnode, const svm_model *model){
 //	cv::Mat test_image;
 //	fs::path test_path =fs::current_path(); test_path /= "/src/train_set/pos_rsz/crop_000001a0.png";
 //	std::string im_path = fs::canonical(test_path).string();
@@ -347,6 +376,10 @@ void GetTestData(svm_node* testnode, const svm_model *model){
 	std::cout << pos_fn.size() << std::endl;
 	std::cout << neg_fn.size() << std::endl;
 
+	std::vector<int>test_labels, pred_labels;
+	for (int i = 0; i<pos_fn.size(); i++) test_labels.push_back(1);
+	for (int i = 0; i<neg_fn.size(); i++) test_labels.push_back(-1);
+
 	//Merge all filenames together into new vector
 	Filenames all_fn;
 	all_fn.reserve( pos_fn.size() + neg_fn.size()); // preallocate memory
@@ -357,6 +390,7 @@ void GetTestData(svm_node* testnode, const svm_model *model){
 	//Iterate through images to get HOG values
 	Filenames::iterator it;
 	int i = 0;
+
 	std::cout << "all_fn" << all_fn.size() <<std::endl;
 	for(it=all_fn.begin() ; it < all_fn.end(); it++,i++) {
 		std::cout << "getting data: "<< *it  << std::endl;
@@ -374,6 +408,7 @@ void GetTestData(svm_node* testnode, const svm_model *model){
 		int num_win = features.size()/3780;
 		std::cout << "num windows: " << features.size()/3780 <<std::endl;
 		std::vector<double> predictions;
+		int pred=0;
 		for (int j = 0; j<num_win; j++){
 			int num_l=0;
 			//std::vector<int> v1(v.begin() + 4, v.end() - 2);
@@ -388,9 +423,17 @@ void GetTestData(svm_node* testnode, const svm_model *model){
 			predictions.push_back(svm_predict_probability(model, x_space, prob_est));
 			if (predictions[j]==1){
 				printf("%f\t%f\t%f\n", predictions[j], prob_est[0], prob_est[1]);
+				pred=1;
 			}
 		}
 
+
+		if(pred==1){
+			pred_labels.push_back(1);
+		}
+		else{
+			pred_labels.push_back(-1);
+		}
 		//int init =0;
 		//std::cout << std::accumulate(predictions.begin(),predictions.end(),0.0)/(features.size()*1.0/3780.0) <<std::endl;;
 
@@ -409,13 +452,20 @@ void GetTestData(svm_node* testnode, const svm_model *model){
 		}
 
 		cv::imshow( "Display window", temp_image );
-		cv::waitKey(5000);
+		cv::waitKey(2000);
 		temp_image.release();
 	}
 
+	int total_correct=0;
+	for(int i = 0; i<pred_labels.size(); i++){
+		if (pred_labels[i] == test_labels[i]){
+			total_correct++;
+		}
+	}
 
+	float perc_right = ((float)total_correct)/pred_labels.size();
 
-	std::cout << "end of testing data" << std::endl;
+	std::cout << "end of testing data: " << perc_right << std::endl;
 
 }
 
