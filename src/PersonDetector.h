@@ -27,7 +27,6 @@ void ResizeImages(fs::path &directory);
 void ResizeImagesRandom(fs::path &directory);
 void DrawGrid(cv::Mat &img_out, int dist, cv::Scalar color, cv::Point offset);
 int TestLibSVM();
-int TestXOR();
 void GetFileNames (Filenames &fn, fs::path &directory);
 void GetTrainingData(svm_problem &prob, int size_set_in);
 void TestTraining(svm_node* testnode, const svm_model *model);
