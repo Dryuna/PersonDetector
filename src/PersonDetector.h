@@ -22,16 +22,15 @@
 namespace fs = boost::filesystem;
 typedef std::vector<std::string> Filenames;
 typedef std::vector<float> FeatureVec;
+typedef std::vector<fs::path> Filepaths;
 
-void ResizeImages(fs::path &directory);
-void ResizeImagesRandom(fs::path &directory);
-void DrawGrid(cv::Mat &img_out, int dist, cv::Scalar color, cv::Point offset);
 int TestLibSVM();
 void GetFileNames (Filenames &fn, fs::path &directory);
-void GetTrainingData(svm_problem &prob, int size_set_in);
-void TestTraining(svm_node* testnode, const svm_model *model);
+void GetTrainingData(svm_problem &prob, int size_set_in, Filepaths &fp);
 void MakeSparseFeatures (FeatureVec &features, svm_node *x_space);
 void GetSparseFeatLength(FeatureVec &features, int &num_l);
-void TestData(svm_node* testnode);
+//void TestData(svm_node* testnode);
 void GetTrainSet (Filenames &pos_fn, Filenames &neg_fn, Filenames &all_fn, int size_set);
 void GetTrainingParameters(svm_parameter &param);
+void TestTrainingData(svm_node* testnode, const svm_model *model, Filepaths &fp);
+void DrawGrid(cv::Mat &img_out, int dist, cv::Scalar color, cv::Point offset);

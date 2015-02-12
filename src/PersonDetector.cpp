@@ -7,78 +7,42 @@
 //============================================================================
 
 #include "PersonDetector.h"
+#include "ResizeFunctions.h"
 
-//void GetTrainingData(svm_problem &prob);
+
+typedef std::vector<fs::path> Filepaths;
 
 
 int main() {
 	std::cout << "!!!Hello World!!!" << std::endl; // prints !!!Hello World!!!
-    //fs::path someDir =fs::current_path(); someDir /= "src/train_set/pos";
+    fs::path someDir =fs::current_path(); someDir /= "src/neg";
     //ResizeImages(someDir);
 	//ResizeImagesRandom(someDir);
+	//ResizeImagesRandomToScale(someDir);
 
-	fs::path imgDir =fs::current_path(); imgDir /= "src/ws2.png";
-	std::string im_loc = fs::canonical(imgDir).string();
-	cv::Mat image= cv::imread(im_loc, CV_LOAD_IMAGE_COLOR);
-	if( !image.data )  { return -1; }
+//	fs::path imgDir =fs::current_path(); imgDir /= "src/ws2.png";
+//	std::string im_loc = fs::canonical(imgDir).string();
+//	cv::Mat image= cv::imread(im_loc, CV_LOAD_IMAGE_COLOR);
+//	if( !image.data )  { return -1; }
 
-	cv::Size newsz;
-	newsz.width= image.cols/4;
-	newsz.height= image.rows/4;
-	cv::resize(image, image,newsz );
-	cv::Mat im_grey;
-	cv::cvtColor(image, im_grey, CV_BGR2GRAY);
+	//cv::Mat im_grey;
+	//cv::cvtColor(image, im_grey, CV_BGR2GRAY);
 
-	cv::Mat im_xdir;
-	float m[3] = {-1,0,1};
-	cv::Mat kernel_x(cv::Size(3,1), CV_32F, m);
-	cv::Mat kernel_y(cv::Size(1,3), CV_32F, m);
-//	kernel_x = cv::Mat::ones(1, 3, CV_32F);
-//	kernel_x.data[0]=-1;
-//	kernel_x.data[1]=0;
-//	kernel_x.data[2]=1;
-
-
-	cv::filter2D(im_grey, im_xdir, -1 , kernel_y, cv::Point( -1, -1 ), 0, cv::BORDER_DEFAULT );
-
-
-
-	cv::Rect zoom_area= cv::Rect(100,100,32,32);
-
-	cv::Mat zoomed_mat;
-	cv::Size zoom_size;
-	zoom_size.height = 32*10;
-	zoom_size.width =  32*10;
-	cv::Mat zoom_in = im_grey(zoom_area);
-	cv::resize(zoom_in, zoomed_mat, zoom_size);
-
-	cv::vector<cv::Mat> channels(3);
-    channels[0]= zoomed_mat;
-    channels[1]= zoomed_mat;
-    channels[2]= zoomed_mat;
-    cv::Mat zoomed_img;
-    cv::merge(channels,zoomed_img);
-
-	//;
-    cv::Point fstpt; fstpt.x =0; fstpt.y =0;
-    cv::Point sndpt; sndpt.x =80; sndpt.y =80;
-	DrawGrid(zoomed_img, 80, cv::Scalar(0,0,255,0), fstpt);
-	DrawGrid(zoomed_img, 160, cv::Scalar(255,0,0,0), sndpt);
-
-	std::cout << kernel_y << std::endl;
 	//GetTrainingData();
 
 	int test = TestLibSVM();
-	//int test2 = TestXOR();
-//	cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );
-//	cv::imshow( "Display window", zoomed_img );
-//	cv::waitKey(15000);
+
 
 	return 0;
 }
 
 
 int TestLibSVM(){
+
+	Filepaths fp;
+	fs::path pos_path =fs::current_path(); pos_path /= "/src/train_set/pos_rsz";
+	fs::path neg_path =fs::current_path(); neg_path /= "/src/train_set/neg_rsz2";
+	fp.push_back(pos_path); fp.push_back(neg_path);
 
 	svm_model *model;
 	int train_now =0;
@@ -91,13 +55,13 @@ int TestLibSVM(){
 
 		for(int i = 0; i<1; i++){
 			std::cout << "time is : " << i << std::endl;
-			GetTrainingData(prob, -1);
+			GetTrainingData(prob, -1, fp);
 			int nr_fold=10;
 			double *target = new double[prob.l];
 			svm_cross_validation(&prob, &param, nr_fold, target);
 		}
 
-		GetTrainingData(prob, -1);
+		GetTrainingData(prob, -1, fp);
 		model= svm_train(&prob,&param);
 	    free(prob.y);
 	    free(prob.x);
@@ -112,9 +76,17 @@ int TestLibSVM(){
 		model =svm_load_model(model_file_name);
 	}
 
+
 	std::cout << "testing training" << std::endl;
 	svm_node* testnode;
-	TestTraining(testnode, model);
+	//TestTrainingData(testnode, model, fp);
+
+	Filepaths fp2;
+	fs::path pos_path2 =fs::current_path(); pos_path2 /= "/src/test_set/pos_new";
+	fs::path neg_path2 =fs::current_path(); neg_path2 /= "/src/test_set/neg_new";
+	fp2.push_back(pos_path2); fp2.push_back(neg_path2);
+	svm_node* testnode2;
+	TestTrainingData(testnode2, model, fp2);
 
 	std::cout << "end of demo" << std::endl;
 
@@ -142,16 +114,11 @@ void GetTrainingParameters(svm_parameter &param){
 	param.weight = NULL;
 }
 
-void GetTrainingData(svm_problem &prob, int size_set_in){
-//	cv::Mat test_image;
-//	fs::path test_path =fs::current_path(); test_path /= "/src/train_set/pos_rsz/crop_000001a0.png";
-//	std::string im_path = fs::canonical(test_path).string();
+void GetTrainingData(svm_problem &prob, int size_set_in, Filepaths &fp){
 
 	Filenames pos_fn, neg_fn;
-	fs::path pos_path =fs::current_path(); pos_path /= "/src/train_set/pos_rsz";
-	fs::path neg_path =fs::current_path(); neg_path /= "/src/train_set/neg_rsz";
-	GetFileNames (pos_fn, pos_path);
-	GetFileNames (neg_fn, neg_path);
+	GetFileNames (pos_fn, fp[0]);
+	GetFileNames (neg_fn, fp[1]);
 
 	std::cout << pos_fn.size() << std::endl;
 	std::cout << neg_fn.size() << std::endl;
@@ -271,16 +238,15 @@ void MakeSparseFeatures (FeatureVec &features, svm_node *x_space){
 	x_space[j].index = -1;
 }
 
-void TestTraining(svm_node* testnode, const svm_model *model){
+
+void TestTrainingData(svm_node* testnode, const svm_model *model, Filepaths &fp){
 //	cv::Mat test_image;
 //	fs::path test_path =fs::current_path(); test_path /= "/src/train_set/pos_rsz/crop_000001a0.png";
 //	std::string im_path = fs::canonical(test_path).string();
 
 	Filenames pos_fn, neg_fn;
-	fs::path pos_path =fs::current_path(); pos_path /= "/src/test_set/pos_new";
-	fs::path neg_path =fs::current_path(); neg_path /= "/src/test_set/neg_new";
-	GetFileNames (pos_fn, pos_path);
-	GetFileNames (neg_fn, neg_path);
+	GetFileNames (pos_fn, fp[0]);
+	GetFileNames (neg_fn, fp[1]);
 
 	std::cout << pos_fn.size() << std::endl;
 	std::cout << neg_fn.size() << std::endl;
@@ -361,7 +327,7 @@ void TestTraining(svm_node* testnode, const svm_model *model){
 		}
 
 		cv::imshow( "Display window", temp_image );
-		cv::waitKey(2000);
+		cv::waitKey(1500);
 		temp_image.release();
 	}
 
@@ -378,36 +344,6 @@ void TestTraining(svm_node* testnode, const svm_model *model){
 
 }
 
-void TestData(svm_node* testnode){
-//	cv::Mat test_image;
-	fs::path test_path =fs::current_path(); test_path /= "/src/train_set/pos_rsz/crop_000001a0.png";
-	std::string im_path = fs::canonical(test_path).string();
-
-
-	//Iterate through images to get HOG values
-
-	int i = 0;
-
-	std::cout << "getting data: "<< im_path  << std::endl;
-	cv::Mat temp_image= cv::imread(im_path,1);
-	FeatureVec features;
-	cv::HOGDescriptor hogdis;
-	hogdis.compute(temp_image, features);
-
-	int num_l=0;
-	GetSparseFeatLength(features, num_l);
-	svm_node *x_space = new svm_node[num_l+1];
-	MakeSparseFeatures (features, x_space);
-
-	std::cout << x_space[0].value <<std::endl;
-
-	testnode = x_space;
-	//free(x_space);
-	temp_image.release();
-
-	std::cout << "end of test data" << std::endl;
-
-}
 
 void GetFileNames (Filenames &fn, fs::path &directory){
 	fs::directory_iterator end_iter;
@@ -415,7 +351,7 @@ void GetFileNames (Filenames &fn, fs::path &directory){
 	if ( fs::exists(directory) && fs::is_directory(directory)){
 		for( fs::directory_iterator dir_iter(directory) ; dir_iter != end_iter ; ++dir_iter){
 			if (fs::is_regular_file(dir_iter->status()) ){
-				if(fs::is_regular_file(*dir_iter) && (dir_iter->path().extension() == ".png" || dir_iter->path().extension() == ".jpg")){
+				if(fs::is_regular_file(*dir_iter) && (dir_iter->path().extension() == ".png" || dir_iter->path().extension() == ".jpg" || dir_iter->path().extension() == ".JPEG")){
 
 					fs::directory_entry& entry = (*dir_iter);
 					std::string temp_path = fs::canonical(entry).string();
@@ -446,168 +382,8 @@ void DrawGrid(cv::Mat &img_out, int dist, cv::Scalar color, cv::Point offset){
 //	  for(int j=0;j<height;j+=dist)
 //		  img_out.at<cv::Vec4b>(i,j)=color;
 }
-void ResizeImagesRandom(fs::path &directory)
-{
-	cv::Mat temp_image;
-
-	std::vector<std::string> FileNames;
-	fs::directory_iterator end_iter;
-
-	//fs::path someDir(currPath, "/pos");
-	if ( fs::exists(directory) && fs::is_directory(directory)){
-		for( fs::directory_iterator dir_iter(directory) ; dir_iter != end_iter ; ++dir_iter){
-			if (fs::is_regular_file(dir_iter->status()) ){
-				if(fs::is_regular_file(*dir_iter) && dir_iter->path().extension() == ".png"){
-					//ret.push_back(it->path().filename());
 
 
-					fs::directory_entry& entry = (*dir_iter);
-					std::string temp_path = fs::canonical(entry).string();
-					//std::cout << temp_path << std::endl;
-					temp_image= cv::imread(temp_path,1);
-					//flip(temp_image, temp_image, 2);
-
-					int rand_max_x = temp_image.rows-128;
-					int rand_max_y = temp_image.cols-64;
-
-					//std::cout << rand_max_x << " : " << rand_max_y << std::endl;
-					//v2 = rand() % 100 + 1;
-
-					for (int j = 0; j<1; j++){
-						int start_x = rand() % rand_max_x;  // v3 in the range 1985-2014
-						int start_y = rand() % rand_max_y;
-						//std::cout << start_x << " : " << start_y << std::endl;
-						//std::cout << temp_image.rows << " : " << temp_image.cols << std::endl;
-
-						cv::Rect crop_rect;
-						crop_rect.x = 3;
-						crop_rect.y = 3;
-						crop_rect.height = 128;
-						crop_rect.width = 64;
-
-						//std::cout << crop_rect.x+crop_rect.width << " : " <<temp_image.cols <<std::endl;
-						//std::cout << crop_rect.y+crop_rect.height << " : " <<temp_image.rows <<std::endl;
-						//cv::Mat new_image;
-						cv::Mat new_img;
-						//new_img= temp_image(crop_rect).clone();
-						temp_image(crop_rect).copyTo(new_img);
-
-						fs::path newDir =fs::current_path(); newDir /= "src/train_set/pos_rsz/";
-						std::string new_path = fs::canonical(newDir).string();
-
-						FileNames.push_back(dir_iter->path().filename().string());
-						std::vector<std::string>::iterator it = FileNames.begin();
-						std::string fn = *it;
-						FileNames.pop_back();
-						fn = fn.substr(0, fn.rfind("."));
-						std::string s = std::to_string(j);
-						fn.append(s);
-						fn.append(".png");
-						new_path.append("/");
-						new_path.append(fn);
-						std::cout << new_path << std::endl;
-						cv::imwrite(new_path, new_img );
 
 
-					}
 
-				}
-			}
-		}
-	}
-}
-
-void ResizeImages(fs::path &directory)
-{
-	cv::Mat temp_image;
-
-	std::vector<std::string> FileNames;
-	fs::directory_iterator end_iter;
-
-	//fs::path someDir(currPath, "/pos");
-	if ( fs::exists(directory) && fs::is_directory(directory)){
-		for( fs::directory_iterator dir_iter(directory) ; dir_iter != end_iter ; ++dir_iter){
-			if (fs::is_regular_file(dir_iter->status()) ){
-				if(fs::is_regular_file(*dir_iter) && dir_iter->path().extension() == ".png"){
-					//ret.push_back(it->path().filename());
-
-
-					fs::directory_entry& entry = (*dir_iter);
-					std::string temp_path = fs::canonical(entry).string();
-					//std::cout << temp_path << std::endl;
-					temp_image= cv::imread(temp_path,1);
-					int shorter_leg = (temp_image.size().height > temp_image.size().width) ? temp_image.size().width:temp_image.size().height;
-
-					cv::Mat new_image;
-					if(shorter_leg > 256){
-						double resize_factor = 256.0/(shorter_leg*1.0);
-						cv::resize(temp_image, new_image,  cv::Size(), resize_factor, resize_factor, cv::INTER_LINEAR);
-						int longer_leg = (new_image.size().height > new_image.size().width) ? new_image.size().width:new_image.size().height;
-
-						int differnce = (longer_leg-256)/2;
-						cv::Rect crop_rect;
-
-						if (new_image.size().height > new_image.size().width){
-							crop_rect.x = 0;
-							crop_rect.y = differnce;
-							crop_rect.height = 256;
-							crop_rect.width = 256;
-						}
-						else{
-							crop_rect.x = differnce;
-							crop_rect.y = 0;
-							crop_rect.height = 256;
-							crop_rect.width = 256;
-						}
-
-						cv::Mat new_img = new_image(crop_rect);
-
-						fs::path newDir =fs::current_path(); newDir /= "src/neg_rsz/";
-						std::string new_path = fs::canonical(newDir).string();
-
-						FileNames.push_back(dir_iter->path().filename().string());
-						std::vector<std::string>::iterator it = FileNames.begin();
-						std::string fn = *it;
-						FileNames.pop_back();
-						new_path.append("/");
-						new_path.append(fn);
-						cv::imwrite(new_path, new_img );
-
-
-					}
-
-				}
-			}
-		}
-	}
-}
-
-void ResizeToScale(cv::Mat &temp_image, float val){
-	int shorter_leg = (temp_image.size().height > temp_image.size().width) ? temp_image.size().width:temp_image.size().height;
-
-	cv::Mat new_image;
-	if(shorter_leg > val){
-		double resize_factor = val/(shorter_leg*1.0);
-		cv::resize(temp_image, new_image,  cv::Size(), resize_factor, resize_factor, cv::INTER_LINEAR);
-		int longer_leg = (new_image.size().height > new_image.size().width) ? new_image.size().width:new_image.size().height;
-
-		int differnce = (longer_leg-256)/2;
-		cv::Rect crop_rect;
-
-		if (new_image.size().height > new_image.size().width){
-			crop_rect.x = 0;
-			crop_rect.y = differnce;
-			crop_rect.height = val;
-			crop_rect.width = val;
-		}
-		else{
-			crop_rect.x = differnce;
-			crop_rect.y = 0;
-			crop_rect.height = val;
-			crop_rect.width = val;
-		}
-
-		temp_image = new_image(crop_rect);
-	}
-	//temp_image = new_img;
-}
